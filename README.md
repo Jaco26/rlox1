@@ -1,0 +1,1 @@
+this is me working through part 2 of [this book](http://craftinginterpreters.com/contents.html) using rust.
