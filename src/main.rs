@@ -1,12 +1,14 @@
 use std::env;
 use std::process;
-use rlox1;
+use rlox1::Rlox1;
 
 
 
 fn main() {
 
-    rlox1::main(env::args()).unwrap_or_else(|err| {
+    let mut rlox1 = Rlox1::new();
+
+    rlox1.do_it(env::args()).unwrap_or_else(|err| {
 
         eprintln!("{:?}", err);
 
