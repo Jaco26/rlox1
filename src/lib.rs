@@ -1,4 +1,6 @@
 mod scanner;
+mod error;
+mod util;
 
 use std::env;
 use std::io;
@@ -32,7 +34,7 @@ impl Rlox1 {
   }
   
 
-  fn run_file(&self, filepath: impl AsRef<Path>) -> Result<(), io::Error> {
+  fn run_file(&mut self, filepath: impl AsRef<Path>) -> Result<(), io::Error> {
     let source = fs::read_to_string(filepath)?;
     self.run(&source);
     Ok(())
@@ -56,11 +58,15 @@ impl Rlox1 {
   }
   
   
-  fn run(&self, source: &str) {
+  fn run(&mut self, source: &str) {
     use scanner::Scanner;
 
-    let scanner = Scanner::new(source);
-    let tokens = scanner.scan_tokens();
+    let mut scanner = Scanner::new(source);
+
+    let tokens = scanner.scan_tokens().unwrap_or_else(|err| {
+      self.error(err.line, err.kind, &err.message);
+      vec![]
+    });
   
     for token in tokens {
       println!("{:?}", token);
@@ -72,12 +78,12 @@ impl Rlox1 {
   }
   
   
-  fn error(&mut self, line: usize, message: &str) {
-    self.report(line, "", message);
+  fn error(&mut self, line: usize, kind: error::LoxErrorKind, message: &str) {
+    self.report(line, kind, "", message);
   }
   
-  fn report(&mut self, line: usize, error_location: &str, message: &str) {
-    eprintln!("[line {}] Error {} : {}", line, error_location, message);
+  fn report(&mut self, line: usize, kind: error::LoxErrorKind, error_location: &str, message: &str) {
+    eprintln!("[line {}] {:?} {} : {}", line, kind, error_location, message);
     self.has_error = true
   }
 }

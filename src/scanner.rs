@@ -2,24 +2,102 @@
   From this chapter http://craftinginterpreters.com/scanning.html
 */
 
+use crate::error::LoxError;
+use crate::error::LoxErrorKind;
+use crate::util::ternary;
+
 pub struct Scanner {
-  source: String
+  source: String,
+  tokens: Vec<Token>,
+  start: usize,
+  current: usize,
+  line: usize,
 }
 
 impl Scanner {
   pub fn new(source: &str) -> Scanner {
-    Scanner { source: String::from(source) }
+    Scanner {
+      source: String::from(source),
+      tokens: Vec::new(),
+      start: 0,
+      current: 0,
+      line: 1,
+    }
   }
 
-  pub fn scan_tokens(&self) -> Vec<Token> {
-    let tokens = Vec::new();
+  pub fn scan_tokens(&mut self) -> Result<Vec<Token>, LoxError> {
+    while !self.is_at_end() {
+      // We are at the beginning of the next lexeme
+      self.start = self.current;
+      self.scan_token()?;
+    }
+    self.tokens.push(Token::new(TokenKind::EOF, "", None, self.line));
+    Ok(self.tokens.clone())
+  }
 
-    tokens
+
+  fn scan_token(&mut self) -> Result<(), LoxError> {
+    use TokenKind::*;
+    match self.advance() {
+      // Single-character lexemes
+      '(' => self.add_token(LeftParen, None),
+      ')' => self.add_token(RightParen, None),
+      '{' => self.add_token(LeftBrace, None),
+      '}' => self.add_token(RightBrace, None),
+      ',' => self.add_token(Comma, None),
+      '.' => self.add_token(Dot, None),
+      '-' => self.add_token(Minus, None),
+      '+' => self.add_token(Plus, None),
+      ';' => self.add_token(Semicolon, None),
+      '*' => self.add_token(Star, None),
+      '/' => self.add_token(Slash, None),
+      // Multi-character lexemes
+      '!' => {
+        let is_current_equals = self.match_current('=');
+        if is_current_equals {
+          self.add_token(BangEqual, None);
+        } else {
+
+        }
+        self.add_token(ternary(is_current_equals, BangEqual, Bang), None)
+      }
+      _ => {
+        return Err(LoxError::new(LoxErrorKind::LexicalError, "Unexpected character.", self.line));
+      }
+    };
+    Ok(())
+  }
+
+
+  fn add_token(&mut self, kind: TokenKind, literal: Option<Literal>) {
+    let text = &self.source[self.start..self.current];
+    self.tokens.push(Token::new(kind, text, literal, self.line));
+  }
+
+
+  fn advance(&mut self) -> char {
+    self.current += 1;
+    self.source.chars().nth(self.current - 1).unwrap()
+  }
+
+  fn match_current(&mut self, expected: char) -> bool {
+    if self.is_at_end() {
+      return false
+    }
+    if self.source.chars().nth(self.current).unwrap() != expected {
+      return false;
+    }
+    self.current += 1;
+    true
+  }
+
+  fn is_at_end(&self) -> bool {
+    self.current >= self.source.len()
   }
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// The first step in any compiler or interpreter is scanning. The scanner takes in raw source code
 /// as a series of characters and groups it into a series of chunks we call tokens. These are meaningful
 /// "words" and "punctuation" that make up a language's grammar.
@@ -58,8 +136,17 @@ pub struct Token {
   line: usize,
 }
 
+impl Token {
+  pub fn new( kind: TokenKind, lexeme: &str, literal: Option<Literal>, line: usize) -> Token {
+    Token { lexeme: String::from(lexeme), kind, literal, line }
+  }
 
-#[derive(Debug)]
+  pub fn to_string(&self) -> String {
+    format!("{:?} {} {:?}", self.kind, self.lexeme, self.literal)
+  }
+}
+
+#[derive(Debug, Clone)]
 pub enum TokenKind {
   // Single-character tokens.
   LeftParen, RightParen, LeftBrace, RightBrace,
@@ -82,7 +169,7 @@ pub enum TokenKind {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// Temporary placeholder enum to express all variants of possible `lox` data types
 pub enum Literal {
   Str(String),
