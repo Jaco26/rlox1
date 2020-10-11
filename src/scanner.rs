@@ -38,7 +38,8 @@ impl Scanner {
 
   fn scan_token(&mut self) -> Result<(), LoxError> {
     use TokenKind::*;
-    match self.advance() {
+
+    match self.advance_current() {
       // Single-character lexemes
       '(' => self.add_token(LeftParen, None),
       ')' => self.add_token(RightParen, None),
@@ -50,16 +51,50 @@ impl Scanner {
       '+' => self.add_token(Plus, None),
       ';' => self.add_token(Semicolon, None),
       '*' => self.add_token(Star, None),
-      '/' => self.add_token(Slash, None),
       // Multi-character lexemes
       '!' => {
-        let is_current_equals = self.match_current('=');
-        if is_current_equals {
-          self.add_token(BangEqual, None);
+        let kind = match self.match_current('=') {
+          true => BangEqual,
+          false => Bang,
+        };
+        self.add_token(kind, None);
+      }
+      '=' => {
+        let kind = match self.match_current('=') {
+          true => EqualEqual,
+          false => Equal,
+        };
+        self.add_token(kind, None);
+      }
+      '<' => {
+        let kind = match self.match_current('=') {
+          true => LessEqual,
+          false => Less,
+        };
+        self.add_token(kind, None);
+      }
+      '>' => {
+        let kind = match self.match_current('=') {
+          true => GreaterEqual,
+          false => Greater,
+        };
+        self.add_token(kind, None);
+      }
+      '/' => {
+        if self.match_current('/') {
+          while self.lookahead() != '\n' && !self.is_at_end() {
+            self.advance_current();
+          }
         } else {
-
+          self.add_token(Slash, None);
         }
-        self.add_token(ternary(is_current_equals, BangEqual, Bang), None)
+      }
+      ' ' | '\r' | '\t' => {}
+      '\n' => {
+        self.line += 1;
+      }
+      '"' => {
+        self.string()?;
       }
       _ => {
         return Err(LoxError::new(LoxErrorKind::LexicalError, "Unexpected character.", self.line));
@@ -68,14 +103,33 @@ impl Scanner {
     Ok(())
   }
 
+  fn string(&mut self) -> Result<(), LoxError> {
+    while self.lookahead() != '"' && !self.is_at_end() {
+      if self.lookahead() == '\n' {
+        self.line += 1;
+      }
+      self.advance_current();
+    }
+
+    if self.is_at_end() {
+      return Err(LoxError::new(LoxErrorKind::LexicalError, "Unterminated string.", self.line));
+    }
+
+    self.advance_current();
+
+    let value = &self.source[(self.start + 1)..(self.current - 1)];
+    let value = Literal::Str(String::from(value));
+    self.add_token(TokenKind::Str, Some(value));
+
+    Ok(())
+  }
 
   fn add_token(&mut self, kind: TokenKind, literal: Option<Literal>) {
     let text = &self.source[self.start..self.current];
     self.tokens.push(Token::new(kind, text, literal, self.line));
   }
 
-
-  fn advance(&mut self) -> char {
+  fn advance_current(&mut self) -> char {
     self.current += 1;
     self.source.chars().nth(self.current - 1).unwrap()
   }
@@ -89,6 +143,13 @@ impl Scanner {
     }
     self.current += 1;
     true
+  }
+
+  fn lookahead(&self) -> char {
+    if self.is_at_end() {
+      return '\0'
+    }
+    self.source.chars().nth(self.current).unwrap()
   }
 
   fn is_at_end(&self) -> bool {

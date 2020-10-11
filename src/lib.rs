@@ -48,7 +48,6 @@ impl Rlox1 {
         io::stdout().flush()?;
         let mut buffer = String::new();
         io::stdin().read_line(&mut buffer)?;
-        buffer.pop();
         buffer
       };
       println!("{}", user_input);
